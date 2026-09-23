@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.json">
+<title>Ma Cuisine V4</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f7fb;color:#182033;font-family:system-ui,sans-serif;padding-bottom:75px}
+header{background:#111827;color:white;padding:16px;position:sticky;top:0;z-index:5}
+.title{font-size:22px;font-weight:800}.sub{font-size:12px;color:#cbd5e1}
+.version{float:right;background:#263044;border-radius:20px;padding:7px 11px;font-size:11px}
+main{max-width:800px;margin:auto;padding:15px}
+.page{display:none}.page.active{display:block}
+h2{font-size:20px}h3{font-size:15px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:10px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.big{font-size:25px;font-weight:800}
+.muted{color:#6b7280;font-size:12px}
+button{border:0;border-radius:10px;padding:9px 12px;font-weight:700}
+.primary{background:#ff7043;color:white}.secondary{background:#edf0f4;color:#344054}
+.danger{background:#fff0f0;color:#b42318}
+input,select{width:100%;padding:11px;border:1px solid #dfe3e9;border-radius:10px;font:inherit;margin:4px 0 9px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.recipe,.stock{display:flex;gap:10px;align-items:center}
+.emoji{font-size:27px;background:#fff0eb;border-radius:12px;padding:10px}
+.grow{flex:1}
+.meal{display:block;width:100%;text-align:left;background:#f7f8fa;margin:6px 0}
+.meal small{display:block;color:#6b7280;margin-top:3px}
+.stockline{display:flex;align-items:center;gap:6px;border-top:1px solid #eee;padding:9px 0}
+.qty{display:flex;align-items:center;gap:5px}
+.qty button{width:30px;height:30px;padding:0}
+.day{background:white;border:1px solid #e5e7eb;border-radius:15px;padding:12px;margin:9px 0}
+.today{border:2px solid #ff7043}
+.check{display:flex;align-items:center;gap:8px;padding:9px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;margin:6px 0}
+.check input{width:auto;margin:0}
+nav{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #ddd;display:grid;grid-template-columns:repeat(5,1fr);z-index:10;padding:5px}
+nav button{background:white;color:#667085;font-size:10px;padding:5px}
+nav button b{display:block;font-size:19px}
+  function renderRecipes(){
+
+let q=(document.getElementById("recipeSearch").value||"").toLowerCase();
+
+let list=data.recipes.filter(r=>{
+let text=r.name+" "+(r.ingredients||[]).map(x=>x[0]).join(" ");
+return text.toLowerCase().includes(q);
+});
+
+document.getElementById("recipeList").innerHTML=list.length
+?list.map(r=>`
+<div class="card">
+<div class="recipe">
+<div class="emoji">${r.emoji||"🍽️"}</div>
+
+<div class="grow">
+<h3>${esc(r.name)}</h3>
+
+<div class="muted">
+${r.time} min · ${r.kcal} kcal ·
+P ${r.p} g · G ${r.c} g · L ${r.f} g
+</div>
+
+<div class="muted">
+${(r.ingredients||[])
+.map(x=>esc(x[0])+" : "+x[1])
+.join(" · ")}
+</div>
+</div>
+
+<div class="actions">
+<button class="secondary"
+onclick="editRecipe(${r.id})">✎</button>
+
+<button class="danger"
+onclick="deleteRecipe(${r.id})">×</button>
+</div>
+
+</div>
+</div>
+`).join("")
+:`<div class="card">Aucune recette trouvée.</div>`;
+}
+
+
+function addRecipe(){
+openRecipeForm();
+}
+
+
+function editRecipe(id){
+let r=recipe(id);
+if(r)openRecipeForm(r);
+}
+
+
+function openRecipeForm(r=null){
+
+document.getElementById("modal").classList.add("open");
+
+document.getElementById("sheet").innerHTML=`
+<div class="row">
+<h2>${r?"Modifier":"Nouvelle"} recette</h2>
+<button class="secondary" onclick="closeModal()">Fermer</button>
+</div>
+
+<label>Nom
+<input id="fName" value="${esc(r?.name||"")}">
+</label>
+
+<div class="grid">
+<label>Emoji
+<input id="fEmoji" value="${esc(r?.emoji||"🍽️")}">
+</label>
+
+<label>Temps (min)
+<input id="fTime" type="number" value="${r?.time||20}">
+</label>
+</div>
+
+<div class="grid">
+<label>Calories
+<input id="fKcal" type="number" value="${r?.kcal||500}">
+</label>
+
+<label>Protéines (g)
+<input id="fP" type="number" value="${r?.p||20}">
+</label>
+</div>
+
+<div class="grid">
+<label>Glucides (g)
+<input id="fC" type="number" value="${r?.c||50}">
+</label>
+
+<label>Lipides (g)
+<input id="fF" type="number" value="${r?.f||15}">
+</label>
+</div>
+
+<label>Ingrédients
+<input id="fIngredients"
+placeholder="Pâtes:250, Tomates:1, Parmesan:40"
+value="${r?(r.ingredients||[]).map(x=>x[0]+":"+x[1]).join(", "):""}">
+</label>
+
+<p class="muted">
+Format : nom:quantité, séparés par des virgules.
+</p>
+
+<button class="primary"
+onclick="saveRecipe(${r?r.id:"null"})">
+Enregistrer
+</button>
+`;
+}
+
+
+function saveRecipe(id){
+
+let name=document.getElementById("fName").value.trim();
+
+if(!name){
+alert("Indique un nom de recette.");
+return;
+}
+
+let raw=document.getElementById("fIngredients").value;
+
+let ingredients=raw
+.split(",")
+.map(x=>x.trim())
+.filter(Boolean)
+.map(x=>{
+let p=x.split(":");
+return [
+p[0].trim(),
+Number(p[1]||1)
+];
+});
+
+let obj={
+name:name,
+emoji:document.getElementById("fEmoji").value||"🍽️",
+time:Number(document.getElementById("fTime").value)||20,
+kcal:Number(document.getElementById("fKcal").value)||0,
+p:Number(document.getElementById("fP").value)||0,
+c:Number(document.getElementById("fC").value)||0,
+f:Number(document.getElementById("fF").value)||0,
+ingredients:ingredients
+};
+
+if(id===null){
+obj.id=uid();
+data.recipes.push(obj);
+}else{
+let r=recipe(id);
+Object.assign(r,obj);
+}
+
+save();
+closeModal();
+renderRecipes();
+renderHome();
+toast("Recette enregistrée");
+}
+
+
+function deleteRecipe(id){
+
+if(!confirm("Supprimer cette recette ?"))return;
+
+data.recipes=data.recipes.filter(r=>String(r.id)!==String(id));
+
+Object.keys(data.plan).forEach(k=>{
+if(String(data.plan[k])===String(id))
+delete data.plan[k];
+});
+
+save();
+renderRecipes();
+renderHome();
+toast("Recette supprimée");
+}
+
+
+function renderStock(){
+
+let q=(document.getElementById("stockSearch").value||"").toLowerCase();
+
+let places=["Frigo","Placard","Congélo"];
+
+document.getElementById("stockList").innerHTML=
+
+places.map(place=>{
+
+let arr=data.stock.filter(s=>
+s.place===place &&
+s.name.toLowerCase().includes(q)
+);
+
+return`
+<div class="card">
+<h3>
+${place==="Frigo"?"🧊":place==="Placard"?"🥫":"❄️"}
+${place}
+</h3>
+
+${arr.length
+?arr.map(s=>`
+<div class="stockline">
+
+<span>📦</span>
+
+<div class="grow">
+<b>${esc(s.name)}</b>
+<div class="muted">${s.unit}</div>
+</div>
+
+<div class="qty">
+<button class="secondary"
+onclick="changeStock(${s.id},-1)">−</button>
+
+<b>${s.qty}</b>
+
+<button class="secondary"
+onclick="changeStock(${s.id},1)">+</button>
+</div>
+
+<button class="secondary"
+onclick="editStock(${s.id})">✎</button>
+
+<button class="danger"
+onclick="deleteStock(${s.id})">×</button>
+
+</div>
+`).join("")
+:`<div class="muted">Aucun produit</div>`}
+
+</div>
+`;
+
+}).join("");
+}
+
+
+function changeStock(id,n){
+
+let s=data.stock.find(x=>String(x.id)===String(id));
+
+if(!s)return;
+
+s.qty=Math.max(0,Number(s.qty)+n);
+
+save();
+renderStock();
+renderHome();
+}
+
+
+function addStock(){
+openStockForm();
+}
+
+
+function editStock(id){
+
+let s=data.stock.find(x=>String(x.id)===String(id));
+
+if(s)openStockForm(s);
+}
+
+
+function openStockForm(s=null){
+
+document.getElementById("modal").classList.add("open");
+
+document.getElementById("sheet").innerHTML=`
+<div class="row">
+<h2>${s?"Modifier":"Ajouter"} un produit</h2>
+<button class="secondary" onclick="closeModal()">Fermer</button>
+</div>
+
+<label>Produit
+<input id="sName" value="${esc(s?.name||"")}">
+</label>
+
+<div class="grid">
+<label>Quantité
+<input id="sQty" type="number" step="0.1"
+value="${s?.qty??1}">
+</label>
+
+<label>Unité
+<input id="sUnit" value="${esc(s?.unit||"pièce")}">
+</label>
+</div>
+
+<label>Emplacement
+<select id="sPlace">
+<option ${s?.place==="Frigo"?"selected":""}>Frigo</option>
+<option ${s?.place==="Placard"?"selected":""}>Placard</option>
+<option ${s?.place==="Congélo"?"selected":""}>Congélo</option>
+</select>
+</label>
+
+<button class="primary"
+onclick="saveStock(${s?s.id:"null"})">
+Enregistrer
+</button>
+`;
+}
+
+
+function saveStock(id){
+
+let name=document.getElementById("sName").value.trim();
+
+if(!name){
+alert("Indique un nom de produit.");
+return;
+}
+
+let obj={
+name:name,
+qty:Number(document.getElementById("sQty").value)||0,
+unit:document.getElementById("sUnit").value||"pièce",
+place:document.getElementById("sPlace").value
+};
+
+if(id===null){
+obj.id=uid();
+data.stock.push(obj);
+}else{
+let s=data.stock.find(x=>String(x.id)===String(id));
+Object.assign(s,obj);
+}
+
+save();
+closeModal();
+renderStock();
+renderHome();
+toast("Stock enregistré");
+}
+
+
+function deleteStock(id){
+
+if(!confirm("Supprimer ce produit du stock ?"))return;
+
+data.stock=data.stock.filter(s=>String(s.id)!==String(id));
+
+save();
+renderStock();
+renderHome();
+toast("Produit supprimé");
+}
+
+
+function renderWeek(){
+
+let today=days[(new Date().getDay()+6)%7];
+
+document.getElementById("weekList").innerHTML=
+
+days.map(day=>`
+<div class="day ${day===today?"today":""}">
+
+<div class="row">
+<b>${day}</b>
+${day===today?"<span class='muted'>Aujourd’hui</span>":""}
+</div>
+
+${meals.map(m=>{
+
+let r=recipe(data.plan[day+"_"+m]);
+
+return`
+<button class="meal"
+onclick="chooseMeal('${day}','${m}')">
+
+<b>${m}</b>
+
+<small>
+${r
+?esc(r.name)+" · "+r.kcal+" kcal"
+:"＋ Choisir une recette"}
+</small>
+
+</button>
+`;
+
+}).join("")}
+
+</div>
+`).join("");
+}
+
+
+function chooseMeal(day,meal){
+
+document.getElementById("modal").classList.add("open");
+
+document.getElementById("sheet").innerHTML=`
+<div class="row">
+<h2>${day} · ${meal}</h2>
+<button class="secondary" onclick="closeModal()">Fermer</button>
+</div>
+
+${data.recipes.map(r=>`
+<button class="meal"
+onclick="setMeal('${day}','${meal}',${r.id})">
+
+<b>${r.emoji||"🍽️"} ${esc(r.name)}</b>
+
+<small>
+${r.kcal} kcal · ${r.time} min
+</small>
+
+</button>
+`).join("")}
+`;
+}
+
+
+function setMeal(day,meal,id){
+
+data.plan[day+"_"+meal]=id;
+
+save();
+closeModal();
+renderWeek();
+renderHome();
+toast("Repas ajouté");
+}
+
+
+function clearPlan(){
+
+if(!confirm("Vider tout le planning ?"))return;
+
+data.plan={};
+
+save();
+renderWeek();
+renderHome();
+toast("Planning vidé");
+}
+
+
+function copyMonday(){
+
+if(!confirm("Copier les repas du lundi sur les autres jours ?"))
+return;
+
+meals.forEach(m=>{
+
+let id=data.plan["Lundi_"+m];
+
+if(id){
+days.slice(1).forEach(d=>{
+data.plan[d+"_"+m]=id;
+});
+}
+
+});
+
+save();
+renderWeek();
+renderHome();
+toast("Planning copié");
+}
+
+
+function shopping(){
+
+let need={};
+
+Object.values(data.plan).forEach(id=>{
+
+let r=recipe(id);
+
+if(!r)return;
+
+(r.ingredients||[]).forEach(x=>{
+need[x[0]]=(need[x[0]]||0)+Number(x[1]||0);
+});
+
+});
+
+return Object.entries(need).map(([name,qty])=>{
+
+let s=data.stock.find(x=>
+x.name.toLowerCase()===name.toLowerCase()
+);
+
+let have=s?Number(s.qty):0;
+
+return{
+name:name,
+needed:qty,
+have:have,
+missing:Math.max(0,qty-have),
+unit:s?s.unit:"à préciser"
+};
+
+}).filter(x=>x.missing>0);
+}
+
+
+function renderShopping(){
+
+let list=shopping();
+
+document.getElementById("shoppingList").innerHTML=
+
+list.length
+?list.map(x=>`
+<label class="check">
+
+<input type="checkbox"
+${data.bought.includes(x.name)?"checked":""}
+onchange="toggleBought('${esc(x.name)}',this.checked)">
+
+<div class="grow">
+<b>${esc(x.name)}</b>
+
+<div class="muted">
+${x.missing} ${esc(x.unit)} à acheter
+· ${x.have} déjà en stock
+</div>
+
+</div>
+
+</label>
+`).join("")
+:`<div class="card">
+🎉 Rien à acheter pour le planning actuel.
+</div>`;
+}
+
+
+function toggleBought(name,checked){
+
+if(checked&&!data.bought.includes(name))
+data.bought.push(name);
+
+if(!checked)
+data.bought=data.bought.filter(x=>x!==name);
+
+save();
+  }function closeModal(){
+document.getElementById("modal").classList.remove("open");
+}
+
+
+function exportData(){
+
+let blob=new Blob(
+[JSON.stringify(data,null,2)],
+{type:"application/json"}
+);
+
+let url=URL.createObjectURL(blob);
+let a=document.createElement("a");
+
+a.href=url;
+a.download="ma-cuisine-sauvegarde.json";
+a.click();
+
+URL.revokeObjectURL(url);
+
+toast("Sauvegarde créée");
+}
+
+
+function importData(){
+
+let input=document.createElement("input");
+
+input.type="file";
+input.accept=".json,application/json";
+
+input.onchange=function(){
+
+let file=input.files[0];
+
+if(!file)return;
+
+let reader=new FileReader();
+
+reader.onload=function(){
+
+try{
+
+let d=JSON.parse(reader.result);
+
+if(!d.recipes||!d.stock||!d.plan)
+throw new Error();
+
+data=d;
+
+save();
+
+renderHome();
+renderRecipes();
+renderStock();
+renderWeek();
+renderShopping();
+
+toast("Sauvegarde restaurée");
+
+}catch(e){
+
+alert("Ce fichier de sauvegarde n'est pas valide.");
+
+}
+
+};
+
+reader.readAsText(file);
+
+};
+
+input.click();
+
+}
+
+
+function resetData(){
+
+if(!confirm(
+"Attention : toutes tes données seront supprimées. Continuer ?"
+))return;
+
+data=clone(defaults);
+
+save();
+
+renderHome();
+renderRecipes();
+renderStock();
+renderWeek();
+renderShopping();
+
+toast("Données réinitialisées");
+}
+
+
+document.getElementById("modal").addEventListener(
+"click",
+function(e){
+
+if(e.target.id==="modal")
+closeModal();
+
+}
+);
+
+
+renderHome();
+renderRecipes();
+renderStock();
+renderWeek();
+renderShopping();
+
+
+if("serviceWorker" in navigator){
+
+window.addEventListener("load",function(){
+
+navigator.serviceWorker
+.register("sw.js")
+.catch(function(){});
+
+});
+
+}
+</script>
+</body>
+</html>
